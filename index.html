@@ -1,307 +1,560 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic, MicOff, Volume2, VolumeX, Menu, X } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Manú - Assistente Virtual</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-export default function ManuAssistant() {
-  const [messages, setMessages] = useState([
-    {
-      type: 'assistant',
-      content: 'Olá! Sou a Manú, Assistente Virtual do Departamento de Manutenção e Obras Escolares. Estou aqui para ajudar com dúvidas sobre processos administrativos e assuntos relacionados ao departamento. Como posso auxiliar você hoje?',
-      timestamp: new Date()
-    }
-  ]);
-  const [input, setInput] = useState('');
-  const [isListening, setIsListening] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  
-  const messagesEndRef = useRef(null);
-  const recognitionRef = useRef(null);
-  const synthesisRef = useRef(null);
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #020617 0%, #581c87 50%, #0f172a 100%);
+            min-height: 100vh;
+            overflow: hidden;
+        }
 
-  // Scroll automático para última mensagem
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-width: 100%;
+        }
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+        /* Header */
+        .header {
+            background: linear-gradient(90deg, rgba(88, 28, 135, 0.5), rgba(157, 23, 77, 0.5));
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(168, 85, 247, 0.2);
+            padding: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
 
-  // Inicializa Web Speech API
-  useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = false;
-      recognitionRef.current.lang = 'pt-BR';
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
 
-      recognitionRef.current.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        setInput(transcript);
-        setIsListening(false);
-      };
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
 
-      recognitionRef.current.onerror = () => {
-        setIsListening(false);
-      };
+        .avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #a855f7, #ec4899);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 0 20px rgba(168, 85, 247, 0.5);
+        }
 
-      recognitionRef.current.onend = () => {
-        setIsListening(false);
-      };
-    }
+        .header-text h1 {
+            color: white;
+            font-size: 1.25rem;
+            font-weight: bold;
+        }
 
-    // Inicializa síntese de voz
-    if ('speechSynthesis' in window) {
-      synthesisRef.current = window.speechSynthesis;
-    }
-  }, []);
+        .header-text p {
+            color: #e9d5ff;
+            font-size: 0.75rem;
+            margin-top: 0.125rem;
+        }
 
-  // Função para falar texto
-  const speakText = (text) => {
-    if (!voiceEnabled || !synthesisRef.current) return;
+        .voice-toggle {
+            background: rgba(168, 85, 247, 0.2);
+            border: none;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: #e9d5ff;
+        }
 
-    // Cancela qualquer fala anterior
-    synthesisRef.current.cancel();
+        .voice-toggle:hover {
+            background: rgba(168, 85, 247, 0.3);
+        }
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'pt-BR';
-    utterance.rate = 0.9;
-    utterance.pitch = 1.1;
+        /* Chat */
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem 1rem;
+        }
 
-    // Tenta encontrar voz feminina em português
-    const voices = synthesisRef.current.getVoices();
-    const ptVoice = voices.find(voice => 
-      voice.lang.includes('pt') && voice.name.toLowerCase().includes('female')
-    ) || voices.find(voice => voice.lang.includes('pt'));
-    
-    if (ptVoice) {
-      utterance.voice = ptVoice;
-    }
+        .messages {
+            max-width: 1000px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
 
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
+        .message {
+            display: flex;
+            animation: fadeIn 0.3s;
+        }
 
-    synthesisRef.current.speak(utterance);
-  };
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
 
-  // Toggle gravação de voz
-  const toggleListening = () => {
-    if (!recognitionRef.current) {
-      alert('Reconhecimento de voz não disponível neste navegador.');
-      return;
-    }
+        .message.user {
+            justify-content: flex-end;
+        }
 
-    if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    } else {
-      recognitionRef.current.start();
-      setIsListening(true);
-    }
-  };
+        .message.assistant {
+            justify-content: flex-start;
+        }
 
-  // Enviar mensagem
-  const handleSend = async () => {
-    if (!input.trim()) return;
+        .message-bubble {
+            max-width: 85%;
+            padding: 1rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
 
-    const userMessage = {
-      type: 'user',
-      content: input,
-      timestamp: new Date()
-    };
+        .message.user .message-bubble {
+            background: linear-gradient(135deg, #9333ea, #ec4899);
+            color: white;
+        }
 
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    setIsLoading(true);
+        .message.assistant .message-bubble {
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            border: 1px solid rgba(168, 85, 247, 0.2);
+            color: #f3e8ff;
+        }
 
-    // Simula chamada à API (substituir pelo endpoint real do n8n)
-    setTimeout(() => {
-      const response = {
-        type: 'assistant',
-        content: `Recebi sua pergunta: "${input}". Em um sistema real, aqui eu consultaria a base de conhecimento com os 500 PDFs através do workflow RAG no n8n e retornaria a resposta mais relevante baseada nos documentos do Departamento de Manutenção e Obras Escolares.`,
-        timestamp: new Date()
-      };
+        .message-text {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
 
-      setMessages(prev => [...prev, response]);
-      setIsLoading(false);
+        .message-time {
+            font-size: 0.7rem;
+            opacity: 0.6;
+            margin-top: 0.5rem;
+        }
 
-      // Fala a resposta se voz estiver habilitada
-      if (voiceEnabled) {
-        speakText(response.content);
-      }
-    }, 1500);
-  };
+        .loading {
+            display: flex;
+            gap: 0.5rem;
+            padding: 1rem;
+        }
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
+        .loading-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #a855f7;
+            animation: bounce 1s infinite;
+        }
 
-  return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-900">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 backdrop-blur-md border-b border-purple-500/20 shadow-lg">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/50">
-              <span className="text-2xl font-bold text-white">M</span>
-            </div>
-            <div className="hidden sm:block">
-              <h1 className="text-xl font-bold text-white">Manú</h1>
-              <p className="text-xs text-purple-200">Assistente Virtual - Manutenção e Obras Escolares</p>
-            </div>
-            <div className="sm:hidden">
-              <h1 className="text-lg font-bold text-white">Manú</h1>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setVoiceEnabled(!voiceEnabled)}
-              className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-all"
-            >
-              {voiceEnabled ? (
-                <Volume2 className="w-5 h-5 text-purple-200" />
-              ) : (
-                <VolumeX className="w-5 h-5 text-purple-200" />
-              )}
-            </button>
-            <button
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-all sm:hidden"
-            >
-              {menuOpen ? (
-                <X className="w-5 h-5 text-purple-200" />
-              ) : (
-                <Menu className="w-5 h-5 text-purple-200" />
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
+        .loading-dot:nth-child(2) {
+            animation-delay: 0.2s;
+            background: #ec4899;
+        }
 
-      {/* Menu Mobile */}
-      {menuOpen && (
-        <div className="bg-gradient-to-r from-purple-900/95 to-pink-900/95 backdrop-blur-md border-b border-purple-500/20 sm:hidden">
-          <div className="px-4 py-3">
-            <p className="text-sm text-purple-200">Assistente Virtual</p>
-            <p className="text-xs text-purple-300">Departamento de Manutenção e Obras Escolares</p>
-          </div>
-        </div>
-      )}
+        .loading-dot:nth-child(3) {
+            animation-delay: 0.4s;
+            background: #a855f7;
+        }
 
-      {/* Chat Container */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
-        <div className="max-w-4xl mx-auto space-y-4">
-          {messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 shadow-lg ${
-                  msg.type === 'user'
-                    ? 'bg-gradient-to-br from-purple-600 to-pink-600 text-white'
-                    : 'bg-gradient-to-br from-slate-800 to-slate-900 text-purple-50 border border-purple-500/20'
-                }`}
-              >
-                <p className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap">
-                  {msg.content}
-                </p>
-                <p className="text-xs opacity-60 mt-2">
-                  {msg.timestamp.toLocaleTimeString('pt-BR', { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  })}
-                </p>
-              </div>
-            </div>
-          ))}
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
 
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl px-4 py-3 border border-purple-500/20">
-                <div className="flex gap-2">
-                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-pink-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></div>
+        /* Input Area */
+        .input-area {
+            background: linear-gradient(90deg, rgba(15, 23, 42, 0.95), rgba(88, 28, 135, 0.95));
+            backdrop-filter: blur(12px);
+            border-top: 1px solid rgba(168, 85, 247, 0.2);
+            padding: 1rem;
+        }
+
+        .input-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            display: flex;
+            gap: 0.5rem;
+            align-items: flex-end;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(168, 85, 247, 0.2);
+            border-radius: 0.75rem;
+            transition: all 0.3s;
+        }
+
+        .input-wrapper:focus-within {
+            border-color: rgba(168, 85, 247, 0.5);
+        }
+
+        #messageInput {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: white;
+            padding: 0.75rem 1rem;
+            font-size: 0.95rem;
+            resize: none;
+            outline: none;
+            min-height: 50px;
+            max-height: 120px;
+            font-family: inherit;
+        }
+
+        #messageInput::placeholder {
+            color: rgba(233, 213, 255, 0.5);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #9333ea, #ec4899);
+            border: none;
+            padding: 0.75rem;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn.listening {
+            background: linear-gradient(135deg, #ef4444, #ec4899);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .status {
+            text-align: center;
+            margin-top: 0.5rem;
+            font-size: 0.75rem;
+            color: #e9d5ff;
+        }
+
+        .status.hidden {
+            display: none;
+        }
+
+        /* Mobile */
+        @media (max-width: 640px) {
+            .header-text p {
+                display: none;
+            }
+            
+            .message-bubble {
+                max-width: 90%;
+            }
+
+            .btn {
+                padding: 0.65rem;
+            }
+        }
+
+        /* Icons */
+        .icon {
+            width: 24px;
+            height: 24px;
+        }
+
+        @media (max-width: 640px) {
+            .icon {
+                width: 20px;
+                height: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-content">
+                <div class="header-left">
+                    <div class="avatar">M</div>
+                    <div class="header-text">
+                        <h1>Manú</h1>
+                        <p>Assistente Virtual - Manutenção e Obras Escolares</p>
+                    </div>
                 </div>
-              </div>
+                <button class="voice-toggle" id="voiceToggle" title="Ativar/Desativar Voz">
+                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                    </svg>
+                </button>
             </div>
-          )}
-
-          <div ref={messagesEndRef} />
         </div>
-      </div>
 
-      {/* Input Area */}
-      <div className="bg-gradient-to-r from-slate-900/95 to-purple-900/95 backdrop-blur-md border-t border-purple-500/20 px-4 py-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex gap-2 items-end">
-            <button
-              onClick={toggleListening}
-              disabled={isLoading}
-              className={`flex-shrink-0 p-3 sm:p-4 rounded-xl transition-all shadow-lg ${
-                isListening
-                  ? 'bg-gradient-to-br from-red-500 to-pink-500 animate-pulse'
-                  : 'bg-gradient-to-br from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500'
-              } disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              {isListening ? (
-                <MicOff className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-              ) : (
-                <Mic className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-              )}
-            </button>
-
-            <div className="flex-1 bg-slate-800/50 rounded-xl border border-purple-500/20 focus-within:border-purple-500/50 transition-all">
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Digite sua pergunta ou use o microfone..."
-                disabled={isLoading}
-                className="w-full bg-transparent text-white px-4 py-3 rounded-xl resize-none focus:outline-none text-sm sm:text-base placeholder-purple-300/50"
-                rows="1"
-                style={{
-                  minHeight: '50px',
-                  maxHeight: '120px'
-                }}
-              />
+        <!-- Chat -->
+        <div class="chat-container" id="chatContainer">
+            <div class="messages" id="messagesContainer">
+                <div class="message assistant">
+                    <div class="message-bubble">
+                        <div class="message-text">Olá! Sou a Manú, Assistente Virtual do Departamento de Manutenção e Obras Escolares. Estou aqui para ajudar com dúvidas sobre processos administrativos e assuntos relacionados ao departamento. Como posso auxiliar você hoje?</div>
+                        <div class="message-time" id="initialTime"></div>
+                    </div>
+                </div>
             </div>
-
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || isLoading}
-              className="flex-shrink-0 p-3 sm:p-4 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-            >
-              <Send className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-            </button>
-          </div>
-
-          {isSpeaking && (
-            <div className="mt-2 text-center">
-              <span className="text-xs text-purple-300 animate-pulse">
-                🔊 Manú está falando...
-              </span>
-            </div>
-          )}
-
-          {isListening && (
-            <div className="mt-2 text-center">
-              <span className="text-xs text-red-300 animate-pulse">
-                🎤 Ouvindo... Fale agora!
-              </span>
-            </div>
-          )}
         </div>
-      </div>
+
+        <!-- Input -->
+        <div class="input-area">
+            <div class="input-container">
+                <button class="btn" id="micButton" title="Gravar Áudio">
+                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                </button>
+                <div class="input-wrapper">
+                    <textarea id="messageInput" placeholder="Digite sua pergunta ou use o microfone..." rows="1"></textarea>
+                </div>
+                <button class="btn" id="sendButton" title="Enviar">
+                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                </button>
+            </div>
+            <div class="status hidden" id="statusMessage"></div>
+        </div>
     </div>
-  );
-}
+
+    <script>
+        // Estado
+        let isListening = false;
+        let voiceEnabled = true;
+        let recognition = null;
+        let synthesis = window.speechSynthesis;
+        let loadingElement = null;
+
+        // Elementos
+        const messagesContainer = document.getElementById('messagesContainer');
+        const chatContainer = document.getElementById('chatContainer');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const micButton = document.getElementById('micButton');
+        const voiceToggle = document.getElementById('voiceToggle');
+        const statusMessage = document.getElementById('statusMessage');
+
+        // Inicializar
+        document.getElementById('initialTime').textContent = formatTime(new Date());
+
+        // Reconhecimento de voz
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'pt-BR';
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                messageInput.value = transcript;
+                isListening = false;
+                updateMicButton();
+                hideStatus();
+            };
+
+            recognition.onerror = () => {
+                isListening = false;
+                updateMicButton();
+                showStatus('Erro ao capturar áudio', 'error');
+            };
+
+            recognition.onend = () => {
+                isListening = false;
+                updateMicButton();
+                hideStatus();
+            };
+        }
+
+        // Eventos
+        micButton.addEventListener('click', toggleListening);
+        voiceToggle.addEventListener('click', toggleVoice);
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Funções
+        function toggleListening() {
+            if (!recognition) {
+                alert('Reconhecimento de voz não disponível neste navegador.');
+                return;
+            }
+
+            if (isListening) {
+                recognition.stop();
+            } else {
+                recognition.start();
+                isListening = true;
+                showStatus('🎤 Ouvindo... Fale agora!', 'listening');
+            }
+            updateMicButton();
+        }
+
+        function toggleVoice() {
+            voiceEnabled = !voiceEnabled;
+            updateVoiceIcon();
+        }
+
+        function updateMicButton() {
+            if (isListening) {
+                micButton.classList.add('listening');
+            } else {
+                micButton.classList.remove('listening');
+            }
+        }
+
+        function updateVoiceIcon() {
+            const icon = voiceToggle.querySelector('svg');
+            if (voiceEnabled) {
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />';
+            } else {
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />';
+            }
+        }
+
+        function sendMessage() {
+            const text = messageInput.value.trim();
+            if (!text) return;
+
+            addMessage('user', text);
+            messageInput.value = '';
+            showLoading();
+            showStatus('Manú está pensando...', 'loading');
+
+            // Simular resposta (substituir por API real)
+            setTimeout(() => {
+                hideLoading();
+                const response = `Recebi sua pergunta: "${text}". Em um sistema real, aqui eu consultaria a base de conhecimento com os 500 PDFs através do workflow RAG no n8n e retornaria a resposta mais relevante baseada nos documentos do Departamento de Manutenção e Obras Escolares.`;
+                addMessage('assistant', response);
+                hideStatus();
+
+                if (voiceEnabled) {
+                    speakText(response);
+                }
+            }, 1500);
+        }
+
+        function addMessage(type, text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.innerHTML = `
+                <div class="message-bubble">
+                    <div class="message-text">${text}</div>
+                    <div class="message-time">${formatTime(new Date())}</div>
+                </div>
+            `;
+            messagesContainer.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        function showLoading() {
+            loadingElement = document.createElement('div');
+            loadingElement.className = 'message assistant';
+            loadingElement.innerHTML = `
+                <div class="message-bubble">
+                    <div class="loading">
+                        <div class="loading-dot"></div>
+                        <div class="loading-dot"></div>
+                        <div class="loading-dot"></div>
+                    </div>
+                </div>
+            `;
+            messagesContainer.appendChild(loadingElement);
+            scrollToBottom();
+        }
+
+        function hideLoading() {
+            if (loadingElement) {
+                loadingElement.remove();
+                loadingElement = null;
+            }
+        }
+
+        function speakText(text) {
+            if (!voiceEnabled || !synthesis) return;
+
+            synthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'pt-BR';
+            utterance.rate = 0.9;
+            utterance.pitch = 1.1;
+
+            const voices = synthesis.getVoices();
+            const ptVoice = voices.find(v => v.lang.includes('pt'));
+            if (ptVoice) utterance.voice = ptVoice;
+
+            utterance.onstart = () => showStatus('🔊 Manú está falando...', 'speaking');
+            utterance.onend = () => hideStatus();
+
+            synthesis.speak(utterance);
+        }
+
+        function showStatus(text, type) {
+            statusMessage.textContent = text;
+            statusMessage.classList.remove('hidden');
+        }
+
+        function hideStatus() {
+            statusMessage.classList.add('hidden');
+        }
+
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function formatTime(date) {
+            return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        // Carregar vozes
+        if (synthesis) {
+            synthesis.onvoiceschanged = () => synthesis.getVoices();
+        }
+    </script>
+</body>
+</html>
