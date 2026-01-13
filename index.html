@@ -465,18 +465,35 @@
             messageInput.value = '';
             showLoading();
             showStatus('Manú está pensando...', 'loading');
-
-            // Simular resposta (substituir por API real)
-            setTimeout(() => {
+            
+            // Chamar API do n8n
+            fetch('https://cesar-poitevin.app.n8n.cloud/webhook/manu', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message: text,
+                    sessionId: 'manu-' + Date.now()
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
                 hideLoading();
-                const response = `Recebi sua pergunta: "${text}". Em um sistema real, aqui eu consultaria a base de conhecimento com os 500 PDFs através do workflow RAG no n8n e retornaria a resposta mais relevante baseada nos documentos do Departamento de Manutenção e Obras Escolares.`;
+                const response = data.output || data.message || data.response || 'Desculpe, não consegui processar sua pergunta.';
                 addMessage('assistant', response);
                 hideStatus();
-
+            
                 if (voiceEnabled) {
                     speakText(response);
                 }
-            }, 1500);
+            })
+            .catch(error => {
+                hideLoading();
+                console.error('Erro:', error);
+                addMessage('assistant', 'Desculpe, ocorreu um erro ao processar sua pergunta. Por favor, tente novamente.');
+                hideStatus();
+            });
         }
 
         function addMessage(type, text) {
