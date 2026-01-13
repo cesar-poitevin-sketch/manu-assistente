@@ -473,7 +473,8 @@
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    chatInput: text
+                    chatInput: text,
+                    sessionId: 'manu-session-' + Date.now()
                 })
             })
             .then(response => response.text())
