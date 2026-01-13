@@ -473,19 +473,27 @@
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    message: text,
-                    sessionId: 'manu-' + Date.now()
+                    chatInput: text
                 })
             })
-            .then(response => response.json())
-            .then(data => {
+            .then(response => response.text())
+            .then(responseText => {
                 hideLoading();
-                const response = data.output || data.message || data.response || 'Desculpe, não consegui processar sua pergunta.';
-                addMessage('assistant', response);
+                
+                // Tentar parsear como JSON, se falhar, usar o texto direto
+                let assistantResponse;
+                try {
+                    const data = JSON.parse(responseText);
+                    assistantResponse = data.output || data.message || data.response || data.text || responseText;
+                } catch {
+                    assistantResponse = responseText || 'Desculpe, não consegui processar sua pergunta.';
+                }
+                
+                addMessage('assistant', assistantResponse);
                 hideStatus();
             
                 if (voiceEnabled) {
-                    speakText(response);
+                    speakText(assistantResponse);
                 }
             })
             .catch(error => {
